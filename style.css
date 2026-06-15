@@ -339,68 +339,85 @@ button:disabled {
     font-size: 11px;
     cursor: pointer;
 }
-/* ==========================================
-   포켓몬 팬 사이트 하단 면책 조항 (Footer) 스타일
-   ========================================== */
-.site-footer {
-    background-color: #f8fafc; /* 연한 회색 배경 */
-    border-top: 1px solid #e2e8f0;
-    padding: 30px 20px 20px 20px;
-    margin-top: 60px;
-    font-size: 11px; /* 메인 화면 방해 없게 작고 깔끔한 글씨 크기 */
-    color: #64748b; /* 눈에 띄지 않는 차분한 회색 */
-    line-height: 1.6;
-    font-family: sans-serif;
-    clear: both;
-}
+        .debug-control-zone {
+            margin: 25px 0;
+            text-align: center;
+        }
+        .toggle-btn {
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            font-size: 13px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+        }
+        .toggle-btn:hover { background-color: #2563eb; }
+        .toggle-btn:active { transform: scale(0.98); }
 
-.footer-content {
-    max-width: 1200px;
-    margin: 0 auto;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 40px;
-}
-
-.footer-section {
-    flex: 1;
-    min-width: 280px;
-}
-
-.site-footer h3 {
-    font-size: 12px;
-    color: #475569;
-    margin-top: 0;
-    margin-bottom: 8px;
-    border-left: 3px solid #cbd5e1;
-    padding-left: 6px;
-}
-
-.site-footer p {
-    margin: 0 0 15px 0;
-    text-align: justify;
-}
-
-.site-footer strong {
-    color: #334155; /* 강조 텍스트는 살짝 더 진하게 */
-}
-
-.site-footer a {
-    color: #3b82f6;
-    text-decoration: none;
-    font-weight: bold;
-}
-
-.site-footer a:hover {
-    text-decoration: underline;
-}
-
-.footer-bottom {
-    max-width: 1200px;
-    margin: 20px auto 0 auto;
-    text-align: center;
-    border-top: 1px solid #e2e8f0;
-    padding-top: 15px;
-    font-size: 11px;
-    color: #94a3b8;
-}
+        .site-footer {
+            background-color: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+            padding: 20px 15px;
+            margin-top: 60px;
+            font-size: 11px;
+            color: #64748b;
+            line-height: 1.6;
+            font-family: sans-serif;
+            clear: both;
+        }
+        .footer-header {
+            text-align: center;
+        }
+        .footer-toggle-btn {
+            background-color: #e2e8f0;
+            color: #475569;
+            border: 1px solid #cbd5e1;
+            padding: 6px 14px;
+            font-size: 11px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-top: 5px;
+        }
+        .footer-toggle-btn:hover { background-color: #cbd5e1; }
+        
+        .footer-content {
+            max-width: 1200px;
+            margin: 20px auto 0 auto;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 30px;
+            border-top: 1px dashed #cbd5e1;
+            padding-top: 20px;
+        }
+        .footer-section {
+            flex: 1;
+            min-width: 280px;
+        }
+        .site-footer h3 {
+            font-size: 12px;
+            color: #475569;
+            margin-top: 0;
+            margin-bottom: 8px;
+            border-left: 3px solid #cbd5e1;
+            padding-left: 6px;
+        }
+        .site-footer p {
+            margin: 0 0 15px 0;
+            text-align: justify;
+        }
+        .site-footer strong {
+            color: #334155;
+        }
+        .site-footer a {
+            color: #3b82f6;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .site-footer a:hover {
+            text-decoration: underline;
+        }
