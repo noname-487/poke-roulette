@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>포켓몬 버전별 4단계 룰렛 (가로 80% 확대 버전)</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="container">
+    <h1>🎡 포켓몬 버전별 4단계 순차 룰렛</h1>
+    
+    <div class="version-area">
+        <label style="font-weight: bold; display: block; margin-bottom: 5px;">🎮 플레이할 버전 선택</label>
+        <select id="versionSelect" onchange="onChangeMainVersion()">
+            <option value="">-- 게임 본편을 선택해주세요 --</option>
+            <option value="파레리그">파이어레드/리프그린</option>
+            <option value="하골소실">하트골드/소울실버</option>
+            <option value="오루알사">오메가루비/알파사파이어</option>
+			<option value="브다샤펄">브릴리언트 다이아몬드/샤이닝 펄</option>
+			<option value="블화2">블랙2/화이트</option>
+            <option value="엑스와이">엑스/와이</option>
+            <option value="울썬문">울트라썬/울트라문</option>
+            <option value="소드실드">소드/실드</option>
+            <option value="스바">스칼렛/바이올렛</option>
+        </select>
+        
+        <div id="optionContainer" style="display: none;">
+            <div class="option-toggle-zone">
+                <div>
+                    <span style="font-size: 12px; color: #555; display: block; margin-bottom: 2px;">➕ DLC 확장 도감 추가</span>
+                    <div class="dlc-checkbox-group" id="dlcCheckboxZone"></div>
+                </div>
+                
+                <div class="rarity-toggle">
+                    <span style="font-size: 12px; color: #555; display: block; margin-bottom: 2px;">⚡ 특수 포켓몬 제한</span>
+                    <label><input type="checkbox" id="rarityCheck" onchange="calculatePreviewCount()"> ⭐ 전설/환상 포함</label>
+                </div>
+            </div>
+        </div>
+        
+        <button id="btn-confirm-version" onclick="lockAndLoadDatabase()" disabled>선택한 조건으로 데이터 확정하기</button>
+    </div>
+
+    <div class="step-container">
+        <div class="step-box" id="box-gen">
+            <div class="step-title">1단계: 세대</div>
+            <div class="step-result" id="res-gen">? 세대</div>
+        </div>
+        <div class="step-box" id="box-type">
+            <div class="step-title">2단계: 타입</div>
+            <div class="step-result" id="res-type">? 타입</div>
+        </div>
+        <div class="step-box" id="box-poke">
+            <div class="step-title">3단계: 포켓몬</div>
+            <div class="step-result" id="res-poke">? 마리</div>
+        </div>
+    </div>
+
+    <div class="wheel-area">
+        <div class="wheel-pointer">▼</div>
+        <canvas id="wheelCanvas" width="500" height="500"></canvas>
+    </div>
+
+    <div class="current-pointing-word" id="livePointerText"><span>-</span></div>
+
+    <div class="font-control-area">
+        <button class="font-ctrl-btn" onclick="adjustFontSize(-1)">−</button>
+        <div class="font-size-indicator" id="fontSizeLabel">룰렛 글자 크기: 100%</div>
+        <button class="font-ctrl-btn" onclick="adjustFontSize(1)">+</button>
+    </div>
+
+    <div class="final-box">
+        <div id="final-name">준비 완료</div>
+        <div id="final-info">먼저 상단에서 게임 버전을 선택해 주세요!</div>
+    </div>
+
+    <div class="btn-group">
+        <button id="btn-gen" onclick="startGenSpin()" disabled>1. 세대 돌리기</button>
+        <button id="btn-type" onclick="startTypeSpin()" disabled>2. 타입 돌리기</button>
+        <button id="btn-poke" onclick="startPokeSpin()" disabled>3. 포켓몬 돌리기</button>
+        <button id="btn-reset" onclick="resetAll()">리셋</button>
+    </div>
+
+    <div class="custom-editor-area" id="editorPanel" style="display: none;">
+        <div class="editor-title">
+            <span>🎡 현재 단계 룰렛 항목 & 비중(가중치) 직접 편집</span>
+            <span id="editorModeBadge" style="font-size:11px; color:#fff; background:#868e96; padding:2px 6px; border-radius:4px;">대기중</span>
+        </div>
+        <div class="add-item-row">
+            <input type="text" id="newInputText" placeholder="새로운 항목 이름 입력...">
+            <button onclick="addItemToEditor()">+ 추가</button>
+        </div>
+        <div class="item-list-container" id="editorItemsContainer">
+            </div>
+    </div>
+</div>
+
+<script src="pokemonData.js"></script> 
+<script>
+const canvas = document.getElementById("wheelCanvas");
+const ctx = canvas.getContext("2d");
+
+let chosenMainVersion = "";
+let versionFilteredDB = [];
+
+let currentItems = []; 
+let currentAngle = 0;
+let isSpinning = false;
+let mode = "NONE"; 
+
+let chosenGen = null;
+let chosenType = null;
+let finalCandidates = [];
+
+let fontScale = 1.0;
+
+const colors = ["#ffadad", "#ffd6a5", "#fdffb6", "#caffbf", "#9bf6ff", "#a0c4ff", "#bdb2ff", "#ffc6ff"];
+
+const typeColors = {
+    "노말": "#b5b5a8", "불꽃": "#fca678", "물": "#90b0f8", "풀": "#9cd89c", "전기": "#fce078",
+    "얼음": "#b0e0e0", "격투": "#dc7870", "독": "#c878c8", "땅": "#ebd090", "비행": "#c0b0f8",
+    "에스퍼": "#fca0b8", "벌레": "#c0d058", "바위": "#d0c078", "고스트": "#a090d8", "드래곤": "#a080f8",
+    "악": "#908078", "강철": "#d0d0e0", "페어리": "#f0b8f0"
+};
+
+const typeTextColors = {
+    "노말": "#4a4a40", "불꽃": "#5e2608", "물": "#0f2861", "풀": "#144014", "전기": "#4d4008",
+    "얼음": "#104040", "격투": "#4a120e", "독": "#401040", "땅": "#4d3d14", "비행": "#24145e",
+    "에스퍼": "#5e0820", "벌레": "#333d08", "바위": "#403710", "고스트": "#22144a", "드래곤": "#200461",
+    "악": "#2e2522", "강철": "#3c3c4a", "페어리": "#4a104a"
+};
+
+function adjustFontSize(direction) {
+    fontScale += direction * 0.1;
+    if (fontScale < 0.5) fontScale = 0.5;
+    if (fontScale > 2.0) fontScale = 2.0;
+    document.getElementById("fontSizeLabel").innerText = `글자 크기: ${Math.round(fontScale * 100)}%`;
+    drawWheel();
+}
+
+function getTotalWeight() {
+    return currentItems.reduce((sum, item) => sum + item.weight, 0);
+}
+
+function getTargetIndex() {
+    const numSegments = currentItems.length;
+    if (numSegments === 0) return -1;
+    const totalW = getTotalWeight();
+    if (totalW === 0) return -1;
+
+    let normalizedAngle = (1.5 * Math.PI - currentAngle) % (2 * Math.PI);
+    if (normalizedAngle < 0) normalizedAngle += 2 * Math.PI;
+
+    const angleRatio = normalizedAngle / (2 * Math.PI);
+    let accumulatedRatio = 0;
+
+    for (let i = 0; i < numSegments; i++) {
+        const itemRatio = currentItems[i].weight / totalW;
+        accumulatedRatio += itemRatio;
+        if (angleRatio <= accumulatedRatio) {
+            return i;
+        }
+    }
+    return numSegments - 1;
+}
+
+function updateLivePointerText() {
+    const idx = getTargetIndex();
+    if (idx !== -1 && currentItems[idx]) {
+        document.getElementById("livePointerText").innerHTML = `<span>${currentItems[idx].text}</span>`;
+    } else {
+        document.getElementById("livePointerText").innerHTML = `<span>-</span>`;
+    }
+}
+
+function drawWheel() {
+    const numSegments = currentItems.length;
+    if (numSegments === 0) { ctx.clearRect(0, 0, canvas.width, canvas.height); return; }
+    
+    const totalW = getTotalWeight();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate(currentAngle);
+    
+    let currentStartAngle = 0;
+    
+    for (let i = 0; i < numSegments; i++) {
+        const item = currentItems[i];
+        const itemText = item.text;
+        const arcSize = (item.weight / totalW) * (2 * Math.PI);
+        
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        // 500픽셀 캔버스 크기에 대응하여 반지름 최적화 (250px 마이너스 마진 마감)
+        ctx.arc(0, 0, canvas.width / 2 - 8, currentStartAngle, currentStartAngle + arcSize);
+        
+        if (mode === "TYPE" && typeColors[itemText]) {
+            ctx.fillStyle = typeColors[itemText];
+        } else {
+            ctx.fillStyle = colors[i % colors.length];
+        }
+        
+        ctx.fill();
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 2.5; // 선 굵기도 조금 더 선명하게 보정
+        ctx.stroke();
+        
+        ctx.save();
+        
+        if (mode === "TYPE" && typeTextColors[itemText]) {
+            ctx.fillStyle = typeTextColors[itemText];
+        } else {
+            ctx.fillStyle = "#333333";
+        }
+        
+        // 캔버스가 커졌기 때문에 기본 폰트 크기 비율 상향 (기본 16px / 항목 많으면 12px)
+        let baseFontSize = numSegments > 15 ? 12 : 16;
+        let finalFontSize = Math.round(baseFontSize * fontScale);
+        
+        ctx.font = `bold ${finalFontSize}px sans-serif`;
+        ctx.textAlign = "right";
+        
+        ctx.rotate(currentStartAngle + arcSize / 2);
+        ctx.fillText(itemText, canvas.width / 2 - 20, 6);
+        ctx.restore();
+        
+        currentStartAngle += arcSize;
+    }
+    ctx.restore();
+}
+
+function syncEditorPanel() {
+    const panel = document.getElementById("editorPanel");
+    const container = document.getElementById("editorItemsContainer");
+    const badge = document.getElementById("editorModeBadge");
+    
+    if (mode === "NONE") { panel.style.display = "none"; return; }
+    panel.style.display = "block";
+    badge.innerText = `${mode} 편집 구역`;
+    
+    container.innerHTML = "";
+    currentItems.forEach((item, index) => {
+        container.innerHTML += `
+            <div class="editor-item-chip">
+                <div class="chip-left">
+                    <span style="font-weight:bold;">${item.text}</span>
+                    <span>(비중: <input type="number" class="weight-input" min="1" max="100" value="${item.weight}" onchange="updateItemWeight(${index}, this.value)">)</span>
+                </div>
+                <button class="delete-chip-btn" onclick="removeItemFromEditor(${index})">X 제외</button>
+            </div>
+        `;
+    });
+}
+
+function updateItemWeight(index, val) {
+    let num = parseInt(val);
+    if (isNaN(num) || num < 1) num = 1;
+    currentItems[index].weight = num;
+    drawWheel();
+    updateLivePointerText();
+}
+
+function removeItemFromEditor(index) {
+    currentItems.splice(index, 1);
+    drawWheel();
+    updateLivePointerText();
+    syncEditorPanel();
+}
+
+function addItemToEditor() {
+    const input = document.getElementById("newInputText");
+    const val = input.value.trim();
+    if (!val) return;
+    
+    if (currentItems.some(item => item.text === val)) {
+        alert("이미 존재하는 항목입니다.");
+        return;
+    }
+    
+    currentItems.push({ text: val, weight: 1 });
+    input.value = "";
+    drawWheel();
+    updateLivePointerText();
+    syncEditorPanel();
+}
+
+function onChangeMainVersion() {
+    const mainSelect = document.getElementById("versionSelect");
+    const optionContainer = document.getElementById("optionContainer");
+    const dlcZone = document.getElementById("dlcCheckboxZone");
+    const confirmBtn = document.getElementById("btn-confirm-version");
+    
+    chosenMainVersion = mainSelect.value;
+    dlcZone.innerHTML = ""; 
+    document.getElementById("rarityCheck").checked = false; 
+    
+    if(!chosenMainVersion) {
+        optionContainer.style.display = "none";
+        confirmBtn.disabled = true;
+        document.getElementById("final-info").innerText = "먼저 상단에서 게임 버전을 선택해 주세요!";
+        return;
+    }
+    
+    optionContainer.style.display = "block";
+    confirmBtn.disabled = false;
+    
+    if (chosenMainVersion === "소드실드") {
+        dlcZone.innerHTML += `<label><input type="checkbox" value="갑옷섬" onchange="calculatePreviewCount()"> 🏝️ 갑옷섬</label>`;
+        dlcZone.innerHTML += `<label><input type="checkbox" value="왕관설원" onchange="calculatePreviewCount()"> 🏔️ 왕관설원</label>`;
+    } else if (chosenMainVersion === "스바") {
+        dlcZone.innerHTML += `<label><input type="checkbox" value="북신" onchange="calculatePreviewCount()"> 👺 북신</label>`;
+        dlcZone.innerHTML += `<label><input type="checkbox" value="블루베리" onchange="calculatePreviewCount()"> 🫐 블루베리</label>`;
+    } else {
+        dlcZone.innerHTML = `<span style="font-size:13px; color:#aaa; font-weight:normal;">추가 DLC 없음</span>`;
+    }
+    
+    calculatePreviewCount();
+}
+
+function filterCoreLogic(targetKeys, allowRarity) {
+    return svPokemonDatabase.filter(p => {
+        if (p.isBase !== true) return false;
+        const isCorrectVersion = targetKeys.some(key => p.versions[key] === true);
+        if (!isCorrectVersion) return false;
+        if (!allowRarity && (p.rarity === "전설" || p.rarity === "환상")) return false;
+        return true;
+    });
+}
+
+function calculatePreviewCount() {
+    const targetKeys = getSelectedVersionKeys();
+    const allowRarity = document.getElementById("rarityCheck").checked;
+    const previewDB = filterCoreLogic(targetKeys, allowRarity);
+    let infoText = `[${targetKeys.join(' + ')}]`;
+    if(allowRarity) infoText += ` + [전설/환상포함]`;
+    document.getElementById("final-info").innerText = `${infoText} 선택됨 (기준 포켓몬 총 ${previewDB.length}마리). 확정 후 시작하세요!`;
+}
+
+function getSelectedVersionKeys() {
+    const keys = [chosenMainVersion];
+    const checkboxes = document.querySelectorAll("#dlcCheckboxZone input[type='checkbox']");
+    checkboxes.forEach(cb => { if(cb.checked) keys.push(cb.value); });
+    return keys;
+}
+
+function lockAndLoadDatabase() {
+    const targetKeys = getSelectedVersionKeys();
+    const allowRarity = document.getElementById("rarityCheck").checked;
+    
+    versionFilteredDB = filterCoreLogic(targetKeys, allowRarity);
+    
+    document.getElementById("versionSelect").disabled = true;
+    document.getElementById("rarityCheck").disabled = true;
+    document.querySelectorAll("#dlcCheckboxZone input").forEach(input => input.disabled = true);
+    document.getElementById("btn-confirm-version").disabled = true;
+    
+    document.getElementById("final-info").innerText = `최종 ${versionFilteredDB.length}마리의 진화 기준 포켓몬이 준비되었습니다. 1단계 세대를 굴리세요!`;
+    initGenWheel();
+}
+
+function initGenWheel() {
+    mode = "GEN";
+    document.getElementById("box-gen").classList.add("active");
+    document.getElementById("btn-gen").disabled = false;
+    
+    const availableGens = [...new Set(versionFilteredDB.map(p => p.gen))].sort((a,b)=>a-b);
+    currentItems = availableGens.map(g => ({ text: `${g}세대`, weight: 1 }));
+    currentAngle = 0;
+    drawWheel();
+    updateLivePointerText();
+    syncEditorPanel();
+}
+
+function spinToSelect(callback) {
+    if (isSpinning) return;
+    isSpinning = true;
+    let velocity = Math.random() * 0.3 + (mode === "POKE" ? 0.6 : 0.4); 
+    const friction = mode === "POKE" ? 0.985 : 0.98; 
+    
+    function animate() {
+        currentAngle += velocity;
+        velocity *= friction;
+        drawWheel();
+        updateLivePointerText();
+        
+        if (velocity < 0.0015) {
+            isSpinning = false;
+            const finalIdx = getTargetIndex();
+            callback(finalIdx);
+        } else {
+            requestAnimationFrame(animate);
+        }
+    }
+    animate();
+}
+
+function startGenSpin() {
+    if (isSpinning) return;
+    
+    mode = "GEN";
+    chosenGen = null;
+    chosenType = null;
+    finalCandidates = [];
+    
+    document.getElementById("res-gen").innerText = "? 세대";
+    document.getElementById("res-type").innerText = "? 타입";
+    document.getElementById("res-poke").innerText = "? 마리";
+    document.getElementById("final-name").innerText = "준비 완료";
+    
+    ["box-gen", "box-type", "box-poke"].forEach(id => document.getElementById(id).classList.remove("active"));
+    document.getElementById("box-gen").classList.add("active");
+    
+    document.getElementById("btn-gen").disabled = true;
+    document.getElementById("btn-type").disabled = true;
+    document.getElementById("btn-poke").disabled = true;
+    
+    spinToSelect((index) => {
+        const matchResult = currentItems[index].text.match(/\d+/);
+        chosenGen = matchResult ? parseInt(matchResult[0]) : 1; 
+
+        document.getElementById("res-gen").innerText = `🎉 ${currentItems[index].text}`;
+        prepareTypeStage();
+    });
+}
+
+function prepareTypeStage() {
+    const genFiltered = versionFilteredDB.filter(p => p.gen === chosenGen);
+    const availableTypes = [...new Set(genFiltered.flatMap(p => p.types))].sort();
+    
+    currentItems = availableTypes.map(t => ({ text: t, weight: 1 }));
+    currentAngle = 0;
+    mode = "TYPE";
+    drawWheel();
+    updateLivePointerText();
+    syncEditorPanel();
+    
+    ["box-gen", "box-type", "box-poke"].forEach(id => document.getElementById(id).classList.remove("active"));
+    document.getElementById("box-type").classList.add("active");
+    
+    document.getElementById("btn-gen").disabled = false;
+    document.getElementById("btn-type").disabled = false;
+    document.getElementById("btn-poke").disabled = true;
+}
+
+function startTypeSpin() {
+    if (isSpinning) return;
+    
+    mode = "TYPE";
+    chosenType = null;
+    finalCandidates = [];
+    
+    document.getElementById("res-type").innerText = "? 타입";
+    document.getElementById("res-poke").innerText = "? 마리";
+    document.getElementById("final-name").innerText = "준비 완료";
+    
+    ["box-gen", "box-type", "box-poke"].forEach(id => document.getElementById(id).classList.remove("active"));
+    document.getElementById("box-type").classList.add("active");
+    
+    document.getElementById("btn-gen").disabled = true; 
+    document.getElementById("btn-type").disabled = true;
+    document.getElementById("btn-poke").disabled = true;
+
+    spinToSelect((index) => {
+        chosenType = currentItems[index].text;
+        document.getElementById("res-type").innerText = `🎉 ${chosenType}`;
+        preparePokeStage();
+    });
+}
+
+function preparePokeStage() {
+    finalCandidates = versionFilteredDB.filter(p => p.gen === chosenGen && p.types.includes(chosenType));
+    
+    if(finalCandidates.length === 0) {
+        currentItems = [{ text: "해당 조건 포켓몬 없음", weight: 1 }];
+    } else {
+        currentItems = finalCandidates.map(p => ({ text: p.name, weight: 1 }));
+    }
+    
+    currentAngle = 0;
+    mode = "POKE";
+    drawWheel();
+    updateLivePointerText();
+    syncEditorPanel();
+    
+    document.getElementById("res-poke").innerText = `${finalCandidates.length}마리`;
+    ["box-gen", "box-type", "box-poke"].forEach(id => document.getElementById(id).classList.remove("active"));
+    document.getElementById("box-poke").classList.add("active");
+    
+    document.getElementById("btn-gen").disabled = false;
+    document.getElementById("btn-type").disabled = false;
+    document.getElementById("btn-poke").disabled = false;
+}
+
+function startPokeSpin() {
+    if (isSpinning) return;
+    
+    document.getElementById("btn-gen").disabled = true;
+    document.getElementById("btn-type").disabled = true;
+    document.getElementById("btn-poke").disabled = true;
+    
+    spinToSelect((index) => {
+        const winningName = currentItems[index].text;
+        document.getElementById("res-poke").innerText = `🎉 ${winningName}`;
+        
+        const lucky = finalCandidates.find(p => p.name === winningName);
+        
+        if(lucky) {
+            let badges = [];
+            if(lucky.mega) badges.push("🧬메가진화");
+            if(lucky.regionForm && lucky.regionForm !== "일반" && lucky.regionForm !== "") badges.push(`🗺️${lucky.regionForm}폼`);
+            if(lucky.rarity && lucky.rarity !== "") badges.push(`⭐${lucky.rarity}`);
+            
+            document.getElementById("final-name").innerText = lucky.name + (badges.length ? ` (${badges.join(' ')})` : '');
+            document.getElementById("final-info").innerText = `🏆 도감번호 ${lucky.no} | [${lucky.gen}세대] ${lucky.types.join('/')} 타입 최종 낙점!`;
+        } else {
+            document.getElementById("final-name").innerText = winningName;
+            document.getElementById("final-info").innerText = `🔧 사용자가 직접 추가한 커스텀 지정 항목이 당첨되었습니다!`;
+        }
+        
+        document.getElementById("btn-gen").disabled = false;
+        document.getElementById("btn-type").disabled = false;
+        document.getElementById("btn-poke").disabled = false; 
+    });
+}
+
+function resetAll() {
+    if (isSpinning) return;
+    chosenGen = null; chosenType = null; finalCandidates = []; chosenMainVersion = "";
+    
+    document.getElementById("versionSelect").disabled = false;
+    document.getElementById("versionSelect").value = "";
+    document.getElementById("rarityCheck").disabled = false;
+    document.getElementById("rarityCheck").checked = false;
+    
+    document.getElementById("optionContainer").style.display = "none";
+    document.getElementById("dlcCheckboxZone").innerHTML = "";
+    document.getElementById("btn-confirm-version").disabled = true;
+    
+    document.getElementById("res-gen").innerText = "? 세대";
+    document.getElementById("res-type").innerText = "? 타입";
+    document.getElementById("res-poke").innerText = "? 마리";
+    document.getElementById("final-name").innerText = "준비 완료";
+    document.getElementById("final-info").innerText = "먼저 상단에서 게임 버전을 선택해 주세요!";
+    
+    ["box-gen", "box-type", "box-poke"].forEach(id => document.getElementById(id).classList.remove("active"));
+    ["btn-gen", "btn-type", "btn-poke"].forEach(id => document.getElementById(id).disabled = true);
+    
+    currentItems = [];
+    mode = "NONE";
+    drawWheel();
+    updateLivePointerText();
+    syncEditorPanel();
+}
+</script>
+</body>
+</html>
