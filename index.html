@@ -58,16 +58,25 @@
         </div>
     </div>
 
+	<div style="max-width: 500px; margin: 0 auto; position: relative;">
+        <div class="wheel-speed-menu" style="position: absolute; right: -50px; top: 15px; background: rgba(255, 255, 255, 0.95); padding: 8px 12px; border-radius: 8px; border: 1px solid #cbd5e1; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,0.08); width: 110px;">
+            <label for="speedSlider" style="font-size: 11px; font-weight: bold; color: #475569; display: flex; align-items: center; gap: 2px;">⏱️ 회전 속도</label>
+            <div style="display: flex; align-items: center; gap: 6px; width: 100%;">
+                <input type="range" id="speedSlider" min="1" max="3" value="2" style="cursor: pointer; width: 65px; margin: 0;">
+                <span id="speedLabel" style="font-size: 11px; font-weight: bold; color: #3b82f6; white-space: nowrap;">보통</span>
+            </div>
+        </div>
+    </div>
+
     <div class="wheel-area">
         <div class="wheel-pointer">▼</div>
         <canvas id="wheelCanvas" width="500" height="500"></canvas>
     </div>
-
     <div class="current-pointing-word" id="livePointerText"><span>-</span></div>
 
     <div class="font-control-area">
         <button class="font-ctrl-btn" onclick="adjustFontSize(-1)">−</button>
-        <div class="font-size-indicator" id="fontSizeLabel">룰렛 글자 크기: 100%</div>
+        <div class="font-size-indicator" id="fontSizeLabel">글자 크기: 100%</div>
         <button class="font-ctrl-btn" onclick="adjustFontSize(1)">+</button>
     </div>
 
@@ -148,6 +157,26 @@ let chosenType = null;
 let finalCandidates = [];
 
 let fontScale = 1.0;
+
+// ⏱️ 룰렛 속도 매핑 설정 (회전 속도와 결정 속도를 체감에 맞게 완전 보정)
+const speedSettings = {
+    1: { baseVel: 0.45, friction: 0.978 },  // 느리게: 첫 회전도 느리고, 브레이크도 아주 천천히 걸려 느긋하게 결정
+    2: { baseVel: 0.65, friction: 0.965 },  // 보통: 적당히 시원하게 돌다가 깔끔하게 결정
+    3: { baseVel: 1.25, friction: 0.945 }   // 빠르게: 엄청난 속도로 회전하다가 강한 브레이크로 순식간에 결정
+};
+
+// 슬라이더 변경 이벤트 리스너 등록
+window.addEventListener("DOMContentLoaded", () => {
+    initDebugMonitor(); // 기존에 있던 함수
+    
+    const slider = document.getElementById("speedSlider");
+    const label = document.getElementById("speedLabel");
+    const labels = { 1: "느리게", 2: "보통", 3: "빠르게" };
+    
+    slider.addEventListener("input", (e) => {
+        label.innerText = labels[e.target.value];
+    });
+});
 
 // 스프라이트 시트 애니메이션 제어용 전역 변수
 let currentSpriteImage = null;
@@ -320,7 +349,7 @@ function playPokemonCry(pokemonNo) {
 function adjustFontSize(direction) {
     fontScale += direction * 0.1;
     if (fontScale < 0.5) fontScale = 0.5;
-    if (fontScale > 2.0) fontScale = 2.0;
+    if (fontScale > 3.0) fontScale = 3.0;
     document.getElementById("fontSizeLabel").innerText = `글자 크기: ${Math.round(fontScale * 100)}%`;
     drawWheel();
 }
@@ -400,14 +429,21 @@ function drawWheel() {
             ctx.fillStyle = "#333333";
         }
         
-        let baseFontSize = numSegments > 15 ? 12 : 16;
+        let baseFontSize = numSegments > 15 ? 25 : 36;
         let finalFontSize = Math.round(baseFontSize * fontScale);
         
         ctx.font = `bold ${finalFontSize}px sans-serif`;
         ctx.textAlign = "right";
         
+        // ⭐ [추가] 세로 정렬 기준을 글자 한가운데(중앙)로 변경합니다.
+        ctx.textBaseline = "middle"; 
+        
         ctx.rotate(currentStartAngle + arcSize / 2);
-        ctx.fillText(itemText, canvas.width / 2 - 20, 6);
+        
+        // ⭐ [수정] y축 오프셋을 6에서 0으로 변경하여 정중앙에 배치합니다.
+        // x축 좌표(canvas.width / 2 - 20)는 바깥쪽 테두리와의 여백을 뜻하므로 그대로 둡니다.
+        ctx.fillText(itemText, canvas.width / 2 - 20, 0); 
+        
         ctx.restore();
         
         currentStartAngle += arcSize;
@@ -415,7 +451,7 @@ function drawWheel() {
     ctx.restore();
 
     drawCenterSprite();
-    drawConfetti(); // 💥 축포 파티클 그리기 파이프라인 연결
+    drawConfetti(); 
 }
 
 function drawCenterSprite() {
@@ -425,10 +461,13 @@ function drawCenterSprite() {
     if (!currentFrame || !currentFrame.frame) return;
     
     const f = currentFrame.frame;
+    const ss = currentFrame.spriteSourceSize || { x: 0, y: 0, w: f.w, h: f.h };
+    const orig = currentFrame.sourceSize || { w: f.w, h: f.h };
     
+    // 원형 배경 그리기
     ctx.save();
     ctx.beginPath();
-    ctx.arc(canvas.width / 2, canvas.height / 2, 55, 0, 2 * Math.PI);
+    ctx.arc(canvas.width / 2, canvas.height / 2, 105, 0, 2 * Math.PI);
     ctx.fillStyle = "#ffffff";
     ctx.shadowBlur = 8;
     ctx.shadowColor = "rgba(0, 0, 0, 0.15)";
@@ -439,12 +478,27 @@ function drawCenterSprite() {
     ctx.restore();
     
     ctx.save();
-    const targetW = 84; 
-    const targetH = (f.h / f.w) * targetW;
-    const dx = canvas.width / 2 - targetW / 2;
-    const dy = canvas.height / 2 - targetH / 2;
     
-    ctx.drawImage(currentSpriteImage, f.x, f.y, f.w, f.h, dx, dy, targetW, targetH);
+    // [도트 그래픽 안티앨리어싱 제거] 
+    // 이미지가 확대되어도 흐려지지 않고 픽셀이 선명하게 유지됩니다.
+    ctx.imageSmoothingEnabled = false;
+    ctx.mozImageSmoothingEnabled = false;
+    ctx.webkitImageSmoothingEnabled = false;
+    ctx.msImageSmoothingEnabled = false;
+    
+    // 배율 설정 (3배)
+    const scale = 3;
+    
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    
+    // 원본 크기 기준 중심점 정렬 및 배율(scale) 반영 여백 보정
+    const dx = centerX - (orig.w / 2 * scale) + (ss.x * scale);
+    const dy = centerY - (orig.h / 2 * scale) + (ss.y * scale);
+    const dw = f.w * scale;
+    const dh = f.h * scale;
+    
+    ctx.drawImage(currentSpriteImage, f.x, f.y, f.w, f.h, dx, dy, dw, dh);
     ctx.restore();
 }
 
@@ -464,12 +518,30 @@ function drawBoxSprite() {
     if (!currentFrame || !currentFrame.frame) return;
     
     const f = currentFrame.frame;
-    const targetW = 76;
-    const targetH = (f.h / f.w) * targetW;
-    const dx = spriteCanvas.width / 2 - targetW / 2;
-    const dy = spriteCanvas.height / 2 - targetH / 2;
+    const ss = currentFrame.spriteSourceSize || { x: 0, y: 0, w: f.w, h: f.h };
+    const orig = currentFrame.sourceSize || { w: f.w, h: f.h };
     
-    sCtx.drawImage(currentSpriteImage, f.x, f.y, f.w, f.h, dx, dy, targetW, targetH);
+    sCtx.save();
+    
+    // [도트 그래픽 안티앨리어싱 제거]
+    sCtx.imageSmoothingEnabled = false;
+    sCtx.mozImageSmoothingEnabled = false;
+    sCtx.webkitImageSmoothingEnabled = false;
+    sCtx.msImageSmoothingEnabled = false;
+    
+    // 배율 설정 (1.5배)
+    const scale = 3;
+    
+    const centerX = spriteCanvas.width / 2;
+    const centerY = spriteCanvas.height / 2;
+    
+    const dx = centerX - (orig.w / 2 * scale) + (ss.x * scale);
+    const dy = centerY - (orig.h / 2 * scale) + (ss.y * scale);
+    const dw = f.w * scale;
+    const dh = f.h * scale;
+    
+    sCtx.drawImage(currentSpriteImage, f.x, f.y, f.w, f.h, dx, dy, dw, dh);
+    sCtx.restore();
 }
 
 // 🚀 축포 이펙트 생성기 (좌우 하단 쌍포 연출)
@@ -766,11 +838,19 @@ function initGenWheel() {
     syncEditorPanel();
 }
 
+// 룰렛 회전 메인 로직 (속도 옵션 반영)
 function spinToSelect(callback) {
     if (isSpinning) return;
     isSpinning = true;
-    let velocity = Math.random() * 0.3 + (mode === "POKE" ? 0.6 : 0.4); 
-    const friction = mode === "POKE" ? 0.985 : 0.98; 
+    
+    // 현재 선택된 속도 단계 가져오기 (1, 2, 3)
+    const currentSpeedLevel = document.getElementById("speedSlider").value;
+    const config = speedSettings[currentSpeedLevel];
+    
+    // 포켓몬 단계(POKE)일 때는 항목이 많으므로 기본 속도 가중치를 살짝 더해줍니다.
+    let bonus = mode === "POKE" ? 0.2 : 0.0;
+    let velocity = (Math.random() * 0.2) + config.baseVel + bonus; 
+    const friction = config.friction; 
     
     function animate() {
         currentAngle += velocity;
@@ -798,6 +878,14 @@ function startGenSpin() {
     chosenType = null;
     finalCandidates = [];
     
+    // 💡 초기화 시 실시간 가리키는 글자 스타일도 리셋
+    const liveTextEl = document.getElementById("livePointerText");
+    if (liveTextEl) {
+        liveTextEl.style.transform = "scale(1)";
+        liveTextEl.style.transition = "none";
+        liveTextEl.style.color = "";
+    }
+    
     document.getElementById("res-gen").innerText = "? 세대";
     document.getElementById("res-type").innerText = "? 타입";
     document.getElementById("res-poke").innerText = "? 마리";
@@ -810,13 +898,40 @@ function startGenSpin() {
     document.getElementById("btn-type").disabled = true;
     document.getElementById("btn-poke").disabled = true;
     
-    spinToSelect((index) => {
-        const matchResult = currentItems[index].text.match(/\d+/);
-        chosenGen = matchResult ? parseInt(matchResult[0]) : 1; 
+    const availableGens = [...new Set(versionFilteredDB.map(p => p.gen))].sort((a,b)=>a-b);
+    currentItems = availableGens.map(g => ({ text: `${g}세대`, weight: 1 }));
+    syncEditorPanel();
 
-        document.getElementById("res-gen").innerText = `🎉 ${currentItems[index].text}`;
-        prepareTypeStage();
-    });
+	spinToSelect((index) => {
+		const matchResult = currentItems[index].text.match(/\d+/);
+		chosenGen = matchResult ? parseInt(matchResult[0]) : 1; 
+
+		document.getElementById("res-gen").innerText = `🎉 ${currentItems[index].text}`;
+		
+		// 🌟 [livePointerText 강조 연출] 파란색으로 1.3배 커짐
+		if (liveTextEl) {
+			liveTextEl.style.transition = "transform 0.15s ease-out, color 0.15s ease-out";
+			liveTextEl.style.transform = "scale(1.3)";
+			liveTextEl.style.color = "#2563eb";
+			liveTextEl.style.fontWeight = "900";
+		}
+		
+		// ⏳ 0.8초 지연 후 스타일 원상복구 시작
+		setTimeout(() => {
+			if (liveTextEl) {
+				// 0.3초 동안 작아지는 애니메이션 설정
+				liveTextEl.style.transition = "transform 0.3s ease-in-out, color 0.3s ease-in-out";
+				liveTextEl.style.transform = "scale(1)";
+				liveTextEl.style.color = "";
+			}
+			
+			// ⏳ 글자가 완전히 작아지는 시간(0.3초 = 300ms)만큼 더 대기 후 다음 단계 진행
+			setTimeout(() => {
+				prepareTypeStage();
+			}, 300);
+
+		}, 800);
+	});
 }
 
 function prepareTypeStage() {
@@ -846,6 +961,14 @@ function startTypeSpin() {
     chosenType = null;
     finalCandidates = [];
     
+    // 💡 초기화 시 실시간 가리키는 글자 스타일도 리셋
+    const liveTextEl = document.getElementById("livePointerText");
+    if (liveTextEl) {
+        liveTextEl.style.transform = "scale(1)";
+        liveTextEl.style.transition = "none";
+        liveTextEl.style.color = "";
+    }
+    
     document.getElementById("res-type").innerText = "? 타입";
     document.getElementById("res-poke").innerText = "? 마리";
     document.getElementById("final-name").innerText = "준비 완료";
@@ -857,11 +980,39 @@ function startTypeSpin() {
     document.getElementById("btn-type").disabled = true;
     document.getElementById("btn-poke").disabled = true;
 
-    spinToSelect((index) => {
-        chosenType = currentItems[index].text;
-        document.getElementById("res-type").innerText = `🎉 ${chosenType}`;
-        preparePokeStage();
-    });
+    const genFiltered = versionFilteredDB.filter(p => p.gen === chosenGen);
+    const availableTypes = [...new Set(genFiltered.flatMap(p => p.types))].sort();
+    currentItems = availableTypes.map(t => ({ text: t, weight: 1 }));
+    syncEditorPanel();
+
+spinToSelect((index) => {
+    chosenType = currentItems[index].text;
+    document.getElementById("res-type").innerText = `🎉 ${chosenType}`;
+    
+    // 🌟 [livePointerText 강조 연출] 당첨된 타입 색상으로 1.3배 커짐
+    if (liveTextEl) {
+        liveTextEl.style.transition = "transform 0.15s ease-out, color 0.15s ease-out";
+        liveTextEl.style.transform = "scale(1.3)";
+        liveTextEl.style.color = typeTextColors[chosenType] || "#2563eb";
+        liveTextEl.style.fontWeight = "900";
+    }
+    
+    // ⏳ 0.8초 지연 후 스타일 원상복구 시작
+    setTimeout(() => {
+        if (liveTextEl) {
+            // 0.3초 동안 작아지는 애니메이션 설정
+            liveTextEl.style.transition = "transform 0.3s ease-in-out, color 0.3s ease-in-out";
+            liveTextEl.style.transform = "scale(1)";
+            liveTextEl.style.color = "";
+        }
+        
+        // ⏳ 글자가 완전히 작아지는 시간(0.3초 = 300ms)만큼 더 대기 후 다음 단계 진행
+        setTimeout(() => {
+            preparePokeStage();
+        }, 300); 
+
+    }, 800);
+});
 }
 
 function preparePokeStage() {
@@ -883,6 +1034,7 @@ function preparePokeStage() {
     ["box-gen", "box-type", "box-poke"].forEach(id => document.getElementById(id).classList.remove("active"));
     document.getElementById("box-poke").classList.add("active");
     
+    // 💡 [수정] 3단계 준비가 끝나면 1단계, 2단계 버튼도 언제든 다시 누를 수 있도록 활성화 상태를 유지합니다.
     document.getElementById("btn-gen").disabled = false;
     document.getElementById("btn-type").disabled = false;
     document.getElementById("btn-poke").disabled = false;
@@ -892,6 +1044,15 @@ function startPokeSpin() {
     if (isSpinning) return;
     
     clearSprite(); 
+    
+    // 💡 시작할 때 실시간 가리키는 글자 스타일 초기화
+    const liveTextEl = document.getElementById("livePointerText");
+    if (liveTextEl) {
+        liveTextEl.style.transform = "scale(1)";
+        liveTextEl.style.transition = "none";
+        liveTextEl.style.color = "";
+    }
+    
     document.getElementById("btn-gen").disabled = true;
     document.getElementById("btn-type").disabled = true;
     document.getElementById("btn-poke").disabled = true;
@@ -925,12 +1086,34 @@ function startPokeSpin() {
             clearSprite();
         }
         
-        // 💥 [추가된 기능] 최종 포켓몬 선택 완료 시 축포 이펙트 발사!
+        // 💥 최종 포켓몬 선택 완료 시 축포 이펙트 발사!
         triggerConfetti();
         
-        document.getElementById("btn-gen").disabled = false;
-        document.getElementById("btn-type").disabled = false;
-        document.getElementById("btn-poke").disabled = false; 
+        // 🌟 [1단계] 룰렛이 멈추면 바늘 글자(포켓몬 이름)가 강렬한 색상으로 즉시 커집니다.
+        if (liveTextEl) {
+            liveTextEl.style.transition = "transform 0.15s ease-out, color 0.15s ease-out";
+            liveTextEl.style.transform = "scale(1.3)";
+            liveTextEl.style.color = "#dc2626"; // 최종 강조용 크림슨 레드
+            liveTextEl.style.fontWeight = "900";
+        }
+        
+        // ⏳ [2단계] 0.8초 동안 최종 결과를 충분히 강조하여 노출한 후 줄어들기 시작합니다.
+        setTimeout(() => {
+            if (liveTextEl) {
+                // 0.4초 동안 부드럽게 원래 크기로 축소
+                liveTextEl.style.transition = "transform 0.4s ease-in-out, color 0.4s ease-in-out";
+                liveTextEl.style.transform = "scale(1)";
+                liveTextEl.style.color = "";
+            }
+            
+            // ⏳ [3단계] 글자가 완벽히 다 줄어드는 시점(400ms 뒤)에 버튼 잠금을 해제합니다.
+            setTimeout(() => {
+                document.getElementById("btn-gen").disabled = false;
+                document.getElementById("btn-type").disabled = false;
+                document.getElementById("btn-poke").disabled = false; 
+            }, 400);
+
+        }, 800);
     });
 }
 
